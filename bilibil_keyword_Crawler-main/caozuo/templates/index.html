@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Neo4j 图谱编辑UI</title>
+    <style>
+    body {
+        font-family: "微软雅黑", Arial, sans-serif;
+        margin: 60px;
+    }
+    input { font-size: 1em; }
+    .section { margin-bottom: 40px; }
+    .success { color: green; }
+    .info { color: #00a; }
+    .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h2>Neo4j 图关系操作界面</h2>
+
+    <div class="section">
+        <h3>1. 查询实体关系</h3>
+        <form method="post">
+            <input name="search_entity" placeholder="起始实体名称" />
+            <input type="submit" name="search_btn" value="查找"/>
+        </form>
+        {% if search_results is not none %}
+            <h4>查询结果：</h4>
+            {% if search_results %}
+                <ul>
+                    {% for row in search_results %}
+                        <li>{{ row['start'] }} - [{{ row['relation'] }}] -> {{ row['end'] }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>没有查到任何关系。</p>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h3>2. 写入三元组</h3>
+        <form method="post">
+            <input name="triple_start" placeholder="起始实体" />
+            <input name="triple_rel" placeholder="关系" />
+            <input name="triple_end" placeholder="目标实体" />
+            <input type="submit" name="insert_btn" value="写入"/>
+        </form>
+    </div>
+
+    <div class="section">
+    <h3>3. 删除实体及其出出边和目标节点</h3>
+    <form method="post">
+        <input name="del_entity" placeholder="要删除的实体名称" />
+        <input type="submit" name="del_btn" value="删除"/>
+    </form>
+</div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div>
+        {% for category, message in messages %}
+          <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+</body>
+</html>
