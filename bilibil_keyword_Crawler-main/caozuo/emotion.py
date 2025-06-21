@@ -11,6 +11,29 @@ client = openai.OpenAI(
     base_url=BASE_URL
 )
 
+EMOTION_COLS = [
+    "Sadness",
+    "Anger",
+    "Regret",
+    "Disgust",
+    "Joy",
+    "Expectation",
+    "Surprise",
+    "Love",
+    "Neutral",
+]
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+SEARCH_CSV = os.path.join(BASE_DIR, 'bilibili_search.csv')
+COMMENTS_DIR = os.path.join(BASE_DIR, 'comments_batch1')
+STATS_PATH = os.path.join(os.path.dirname(__file__), 'emotion_count_by_time_full.csv')
+
+search_df = pd.read_csv(SEARCH_CSV)
+bvid_to_info = {
+    row['bvid']: (str(row['description']), str(row['keywords']))
+    for idx, row in search_df.iterrows()
+}
+
 def get_sentiment_from_llm(description, keywords, comment, max_retry=3):
     prompt = (
         "You are an expert in emotion classification. "
@@ -30,8 +53,7 @@ def get_sentiment_from_llm(description, keywords, comment, max_retry=3):
                 temperature=0
             )
             result = response.choices[0].message.content.strip()
-            allowed = ["Sadness", "Anger", "Regret", "Disgust", "Joy",
-                       "Expectation", "Surprise", "Love", "Neutral"]
+            allowed = EMOTION_COLS
             for a in allowed:
                 if a.lower() == result.lower():
                     return a
@@ -44,34 +66,119 @@ def get_sentiment_from_llm(description, keywords, comment, max_retry=3):
             time.sleep(2)
     return "Neutral"
 
-# 加载全视频信息
-search_df = pd.read_csv('../bilibili_search.csv')
-bvid_to_info = {row['bvid']: (str(row['description']), str(row['keywords'])) for idx, row in search_df.iterrows()}
+# 关键！统一归一化
+def normalize_emotion(x):
+    if pd.isna(x):           # 处理nan、None
+        return "Neutral"
+    x = str(x).strip()
+    if x in EMOTION_COLS:
+        return x
+    return "Neutral"
 
-# 列出所有评论csv
-test_files = [f for f in os.listdir('../comments_batch1') if f.endswith('_comments.csv')]
+def update_stats(df: pd.DataFrame, bvid: str) -> None:
+    """Update daily emotion counts for the given BV video."""
 
-for fname in tqdm(test_files, desc='处理视频评论文件'):
-    bv = fname.replace('_comments.csv', '')
-    if bv not in bvid_to_info:
-        print(f"BV号{bv}未出现在bilibili_search.csv，跳过")
-        continue
-    desc, kw = bvid_to_info[bv]
-    file_path = os.path.join('../comments_batch1', fname)
+    if not os.path.exists(STATS_PATH):
+        stats_df = pd.DataFrame(columns=['bvid', 'time'] + EMOTION_COLS)
+    else:
+        stats_df = pd.read_csv(STATS_PATH)
+
+    df['emotion'] = df['emotion'].apply(normalize_emotion)
+    df['time'] = pd.to_datetime(df['评论时间']).dt.date.astype(str)
+    counts = (
+        df.groupby('time')['emotion']
+        .value_counts()
+        .unstack()
+        .reindex(columns=EMOTION_COLS, fill_value=0)
+        .astype(int)
+        .reset_index()
+    )
+
+    counts.insert(0, 'bvid', bvid)
+
+    if not stats_df.empty:
+        stats_df.set_index(['bvid', 'time'], inplace=True)
+
+    for _, row in counts.iterrows():
+        key = (row['bvid'], row['time'])
+        values = row[EMOTION_COLS]
+        if key in stats_df.index:
+            stats_df.loc[key, EMOTION_COLS] = (
+                stats_df.loc[key, EMOTION_COLS].astype(int) + values
+            )
+        else:
+            stats_df.loc[key, EMOTION_COLS] = values
+
+    stats_df = stats_df.reset_index()
+    stats_df.to_csv(STATS_PATH, index=False, encoding='utf-8-sig')
+
+def compute_batch_stats(directory=COMMENTS_DIR):
+    all_stats = []
+    for fname in os.listdir(directory):
+        if not fname.endswith('_comments.csv'):
+            continue
+        path = os.path.join(directory, fname)
+        df = pd.read_csv(path)
+        if 'emotion' not in df.columns:
+            continue
+        df['emotion'] = df['emotion'].apply(normalize_emotion)
+        df['time'] = pd.to_datetime(df['评论时间']).dt.date.astype(str)
+        counts = (
+            df.groupby('time')['emotion']
+            .value_counts()
+            .unstack()
+            .reindex(columns=EMOTION_COLS, fill_value=0)
+        )
+        for col in EMOTION_COLS:
+            counts[col] = pd.to_numeric(counts[col], errors='coerce').fillna(0).astype(int)
+        counts = counts.reset_index()
+        counts.insert(0, 'bvid', fname.replace('_comments.csv', ''))
+        all_stats.append(counts)
+    if not all_stats:
+        return
+    stats_df = pd.concat(all_stats, ignore_index=True)
+    stats_df = (
+        stats_df.groupby(['bvid', 'time'])[EMOTION_COLS]
+        .sum()
+        .reset_index()
+    )
+    stats_df.to_csv(STATS_PATH, index=False, encoding='utf-8-sig')
+
+def process_file(file_path, desc, kw, fname):
     df = pd.read_csv(file_path)
     if '评论内容' not in df.columns:
         print(f"{file_path} 缺少评论内容字段，跳过")
-        continue
-
-    # 情感分析，并实时写入新列
+        return
     emotion_list = []
-    for idx, row in tqdm(df.iterrows(), total=len(df), desc=f"{fname}情感标注", leave=False):
+    for idx, row in tqdm(
+        df.iterrows(),
+        total=len(df),
+        desc=f"{fname}情感标注",
+        leave=False,
+    ):
         comment = str(row['评论内容'])
         emotion = get_sentiment_from_llm(desc, kw, comment)
         emotion_list.append(emotion)
-        print(f"【{fname} 第{idx+1}条】评论: {comment[:40]}... | 分类: {emotion}")
-
+        print(
+            f"【{fname} 第{idx+1}条】评论: {comment[:40]}... | 分类: {emotion}"
+        )
     df['emotion'] = emotion_list
-    # 直接覆盖写回原csv文件
     df.to_csv(file_path, index=False, encoding="utf-8-sig")
     print(f"{fname} 已直接更新情感分类到原csv")
+
+def process_new_files(directory=COMMENTS_DIR):
+    files = [f for f in os.listdir(directory) if f.endswith('_comments.csv')]
+    for fname in tqdm(files, desc='检查评论文件'):
+        file_path = os.path.join(directory, fname)
+        header = pd.read_csv(file_path, nrows=0)
+        bv = fname.replace('_comments.csv', '')
+        if bv not in bvid_to_info:
+            print(f"BV号{bv}未出现在bilibili_search.csv，跳过")
+            continue
+        desc, kw = bvid_to_info[bv]
+        if 'emotion' not in header.columns:
+            process_file(file_path, desc, kw, fname)
+    compute_batch_stats(directory)
+
+if __name__ == '__main__':
+    process_new_files()
