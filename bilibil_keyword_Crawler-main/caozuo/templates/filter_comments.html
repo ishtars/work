@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>评论筛选</title>
+    <style>
+    body {font-family: "微软雅黑", Arial, sans-serif; margin: 40px;}
+    input, select {font-size: 1em;}
+    </style>
+</head>
+<body>
+    <h2>按日期范围和情感筛选评论</h2>
+    <form method="post">
+        <label for="start">开始日期:</label>
+        <input type="date" id="start" name="start_date" value="{{ selected_start }}" min="{{ min_date }}" max="{{ max_date }}">
+        <label for="end">结束日期:</label>
+        <input type="date" id="end" name="end_date" value="{{ selected_end }}" min="{{ min_date }}" max="{{ max_date }}">
+        <label for="emotion">情感:</label>
+        <select name="emotion" id="emotion">
+            {% for e in emotions %}
+            <option value="{{ e }}" {% if e == selected_emotion %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="筛选">
+    </form>
+
+    {% if comments is not none %}
+    <h3>筛选结果 ({{ comments|length }} 条)</h3>
+    <ul>
+        {% for c in comments %}
+        <li>{{ c }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</body>
+</html>

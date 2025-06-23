@@ -25,7 +25,7 @@ EMOTION_COLS = [
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SEARCH_CSV = os.path.join(BASE_DIR, 'bilibili_search.csv')
-COMMENTS_DIR = os.path.join(BASE_DIR, 'comments_batch2')
+COMMENTS_DIR = os.path.join(BASE_DIR, 'comments_batch1')
 STATS_PATH = os.path.join(os.path.dirname(__file__), 'emotion_count_by_time_full.csv')
 
 search_df = pd.read_csv(SEARCH_CSV)
@@ -37,14 +37,24 @@ bvid_to_info = {
 def get_sentiment_from_llm(description, keywords, comment, max_retry=3):
     prompt = (
         "You are an expert in emotion classification. "
-        "Based on the following video description, keywords, and comment, "
-        "please judge which of the 9 emotions the comment expresses (choose only one), "
-        "and return ONLY the emotion English name (one of: Sadness, Anger, Regret, Disgust, Joy, Expectation, Surprise, Love, Neutral):\n\n"
+        "Based on the following video description, keywords, and comment, please do the following:\n"
+        "1. Judge whether the comment contains a meaningful discussion, opinion, or evaluation about the game itself (such as gameplay, mechanics, graphics, events, specific experiences, or emotions related to the game).\n"
+        "2. If the comment does not discuss the game content (for example, only shares personal luck, drops, greetings, general chatting, or self-boasting such as 'I also got it!', 'My account is always lucky', 'Everyone is so nice', etc.), or is otherwise irrelevant to the game itself, classify it as 'Neutral'.\n"
+        "3. If the comment is related to the game content, then judge which of the following 9 emotions it expresses (choose only one): Sadness, Anger, Regret, Disgust, Joy, Expectation, Surprise, Love, Neutral.\n"
+        "Output ONLY the English emotion name (e.g., Joy), nothing else.\n"
+        "\n"
         f"Video Description: {description}\n"
         f"Keywords: {keywords}\n"
         f"Comment: {comment}\n"
         "Output ONLY the English category (e.g., Joy), nothing else."
+
+        "For example:"
+        "- Comment: '我也出了' → Neutral"
+        "- Comment: '地图太大了，玩起来累' → Sadness"
+        "- Comment: '官方太良心了，今天奖励好多' → Joy"
+
     )
+
     for _ in range(max_retry):
         try:
             response = client.chat.completions.create(

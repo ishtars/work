@@ -196,6 +196,18 @@ python main.py --keyword "崩铁" --recent-days 7 --max-page 3 --comments
 
 这将分别获取最近7天内每天发布的视频，每天最多搜索3页结果。此功能适合获取时间跨度较大的数据，或按日期观察视频发布趋势。
 
+## 评论筛选Web界面
+
+运行 `caozuo/comment_viewer.py` 可以启动一个简单的Flask页面，按照日期和情感类别筛选批次中的评论。
+
+脚本会在项目根目录下依次查找 `comments_batch2`、`comments_batch1` 或 `comments` 目录中的 `emotion_count_by_time_full.csv`。也可以通过环境变量 `BATCH_DIR` 指定评论目录，例如：
+
+```bash
+BATCH_DIR=comments_batch2 python caozuo/comment_viewer.py
+```
+
+然后在浏览器访问 `http://127.0.0.1:5000/` 即可筛选查看评论。
+
 ## 项目结构
 
 ```
