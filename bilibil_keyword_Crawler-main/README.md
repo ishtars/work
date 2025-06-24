@@ -61,10 +61,10 @@ pip install pandas aiohttp requests beautifulsoup4 tqdm mysql-connector-python o
 ```python
 config = {
     # 基础搜索配置
-    "keywords": ["关键词1", "关键词2"],  # 搜索关键词列表，支持多关键词
+    "keywords": ["麦晓雯红皮"],  # 搜索关键词列表，支持多关键词
     "keywords_blacklist": [],  # 标题黑名单
     "is_union": True,  # True为OR逻辑，False为AND逻辑
-    "file_path": "./bilibili_search.csv",  # 输出文件路径
+    "file_path": "./bilibili_search_enent.csv",  # 输出文件路径
     "page": 5,  # 每个关键词搜索的页数
     
     # 输出与数据库设置
@@ -207,6 +207,20 @@ BATCH_DIR=comments_batch2 python caozuo/comment_viewer.py
 ```
 
 然后在浏览器访问 `http://127.0.0.1:5000/` 即可筛选查看评论。
+
+## 评论情感分析
+
+运行 `caozuo/emotion.py` 可对批次中的评论进行情感分类。脚本默认仅处理
+尚未包含 `emotion` 列的 CSV 文件，分类结果会直接写回原文件。
+
+使用 `--force` 参数可以强制重新标注所有文件，即使它们已经拥有
+`emotion` 列，例如：
+
+```bash
+python caozuo/emotion.py --force
+```
+
+可通过 `-d` 指定评论 CSV 文件所在目录。
 
 ## 项目结构
 

@@ -1,6 +1,6 @@
 config = {
     # 基础搜索配置
-    "keywords": ["三角洲"],  # 搜索关键词列表，支持多关键词
+    "keywords": ["麦晓雯红皮"],  # 搜索关键词列表，支持多关键词
     "keywords_blacklist": [],  # 视频标题黑名单，含有这些词的视频将被过滤
     "tids": "",               # 分区ID，空字符串表示全部分区
     "is_union": True,         # True表示OR逻辑(并集)，False表示AND逻辑(交集)
