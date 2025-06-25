@@ -1,4 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    jsonify,
+)
 import re
 from neo4j import GraphDatabase, basic_auth
 
@@ -24,6 +32,33 @@ def search_relations(start_entity):
         )
         result = session.run(query, start_entity=start_entity)
         return list(result)
+
+# 列出三元组，支持分页
+def list_all_triples(offset: int = 0, limit: int = 50):
+    with driver.session() as session:
+        query = (
+            "MATCH (s)-[r]->(e) "
+            "RETURN id(r) AS rid, s.name AS start, type(r) AS relation, e.name AS end "
+            "ORDER BY rid SKIP $offset LIMIT $limit"
+        )
+        result = session.run(query, offset=offset, limit=limit)
+        return list(result)
+
+# 根据关系ID删除三元组
+def delete_triple_by_id(rid: int):
+    with driver.session() as session:
+        session.run("MATCH ()-[r]->() WHERE id(r)=$rid DELETE r", rid=rid)
+
+# 更新三元组
+def update_triple(rid: int, start: str, relation: str, end: str):
+    with driver.session() as session:
+        session.run("MATCH ()-[r]->() WHERE id(r)=$rid DELETE r", rid=rid)
+        query = (
+            "MERGE (n {name: $start}) "
+            "MERGE (m {name: $end}) "
+            f"MERGE (n)-[r:{relation.upper()}]->(m)"
+        )
+        session.run(query, start=start, end=end)
 
 # 删除实体和相关目标与出边
 def delete_entity_and_targets(start_entity):
@@ -63,6 +98,88 @@ def write_triple(start_entity, relation, end_entity):
             "RETURN n, type(r), m"
         )
         session.run(query, start_entity=start_entity, end_entity=end_entity)
+
+
+@app.route('/triples')
+def list_triples():
+    page = int(request.args.get('page', 1))
+    limit = 50
+    offset = (page - 1) * limit
+    triples = list_all_triples(offset, limit)
+    return render_template('triples.html', triples=triples, page=page)
+
+
+@app.route('/delete/<int:rid>', methods=['POST'])
+def delete_triple(rid):
+    page = int(request.args.get('page', 1))
+    delete_triple_by_id(rid)
+    flash('已删除三元组', 'success')
+    return redirect(url_for('list_triples', page=page))
+
+
+@app.route('/edit/<int:rid>', methods=['GET', 'POST'])
+def edit_triple(rid):
+    page = int(request.args.get('page', 1))
+    if request.method == 'POST':
+        s = request.form.get('start', '').strip()
+        r = request.form.get('relation', '').strip()
+        e = request.form.get('end', '').strip()
+        if s and r and e:
+            update_triple(rid, s, r, e)
+            flash('已更新三元组', 'success')
+            return redirect(url_for('list_triples', page=page))
+        else:
+            flash('请完整填写三元组', 'warning')
+    with driver.session() as session:
+        q = (
+            "MATCH (s)-[r]->(e) WHERE id(r)=$rid "
+            "RETURN s.name AS start, type(r) AS relation, e.name AS end"
+        )
+        res = session.run(q, rid=rid).single()
+        triple = res.data() if res else None
+    return render_template('edit_triple.html', triple=triple, page=page)
+
+
+@app.route('/triples')
+def list_triples():
+    page = int(request.args.get('page', 1))
+    limit = 50
+    offset = (page - 1) * limit
+    triples = list_all_triples(offset, limit)
+    return render_template('triples.html', triples=triples, page=page)
+
+
+@app.route('/delete/<int:rid>', methods=['POST'])
+def delete_triple(rid):
+    page = int(request.args.get('page', 1))
+    delete_triple_by_id(rid)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify(status='ok')
+    flash('已删除三元组', 'success')
+    return redirect(url_for('list_triples', page=page))
+
+
+@app.route('/edit/<int:rid>', methods=['GET', 'POST'])
+def edit_triple(rid):
+    page = int(request.args.get('page', 1))
+    if request.method == 'POST':
+        s = request.form.get('start', '').strip()
+        r = request.form.get('relation', '').strip()
+        e = request.form.get('end', '').strip()
+        if s and r and e:
+            update_triple(rid, s, r, e)
+            flash('已更新三元组', 'success')
+            return redirect(url_for('list_triples', page=page))
+        else:
+            flash('请完整填写三元组', 'warning')
+    with driver.session() as session:
+        q = (
+            "MATCH (s)-[r]->(e) WHERE id(r)=$rid "
+            "RETURN s.name AS start, type(r) AS relation, e.name AS end"
+        )
+        res = session.run(q, rid=rid).single()
+        triple = res.data() if res else None
+    return render_template('edit_triple.html', triple=triple, page=page)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():

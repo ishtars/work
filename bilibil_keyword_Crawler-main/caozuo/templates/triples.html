@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>全部三元组</title>
+    <style>
+    body {font-family: "\u5FAE\u8F6F\u96C5\u9ED1", Arial, sans-serif; margin:40px;}
+    table {border-collapse: collapse; width: 100%;}
+    th, td {border: 1px solid #ccc; padding: 6px 10px; text-align: left;}
+    .pager {margin-top: 20px;}
+    </style>
+</head>
+<body>
+    <h2>全部三元组 (每页50条)</h2>
+    <a href="{{ url_for('index') }}">返回首页</a>
+    <table>
+        <tr><th>起始</th><th>关系</th><th>目标</th><th>操作</th></tr>
+        {% for t in triples %}
+        <tr>
+            <td>{{ t['start'] }}</td>
+            <td>{{ t['relation'] }}</td>
+            <td>{{ t['end'] }}</td>
+            <td>
+                <a href="{{ url_for('edit_triple', rid=t['rid'], page=page) }}">修改</a>
+                |
+                <form method="post" action="{{ url_for('delete_triple', rid=t['rid'], page=page) }}" style="display:inline">
+                    <button type="submit">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <div class="pager">
+        {% if page > 1 %}
+        <a href="{{ url_for('list_triples', page=page-1) }}">上一页</a>
+        {% endif %}
+        <span>第 {{ page }} 页</span>
+        <a href="{{ url_for('list_triples', page=page+1) }}">下一页</a>
+    </div>
+</body>
+</html>
