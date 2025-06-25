@@ -49,7 +49,15 @@
     </div>
 
     <div class="section">
-    <h3>3. 删除实体及其出出边和目标节点</h3>
+        <h3>3. 批量写入三元组</h3>
+        <form method="post">
+            <textarea name="bulk_triples" rows="6" cols="40" placeholder="每行格式: 实体 — 关系 — 实体"></textarea><br/>
+            <input type="submit" name="bulk_insert_btn" value="批量写入"/>
+        </form>
+    </div>
+
+    <div class="section">
+    <h3>4. 删除实体及其出出边和目标节点</h3>
     <form method="post">
         <input name="del_entity" placeholder="要删除的实体名称" />
         <input type="submit" name="del_btn" value="删除"/>

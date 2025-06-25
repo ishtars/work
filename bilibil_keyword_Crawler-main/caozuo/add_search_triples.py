@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
+import re
 from neo4j import GraphDatabase, basic_auth
 
 app = Flask(__name__)
@@ -84,6 +85,20 @@ def index():
             flash(f"已写入三元组: ({s})-[:{r}]->({e})", 'success')
         else:
             flash('请完整填写三元组的三个输入栏。', 'warning')
+        return redirect(url_for('index'))
+
+    # 批量写入表单
+    if request.method == 'POST' and 'bulk_insert_btn' in request.form:
+        raw_text = request.form.get('bulk_triples', '').strip()
+        if raw_text:
+            lines = [l for l in raw_text.splitlines() if l.strip()]
+            for line in lines:
+                parts = [p.strip() for p in re.split('[—-]', line) if p.strip()]
+                if len(parts) == 3:
+                    write_triple(parts[0], parts[1], parts[2])
+            flash(f'已批量写入 {len(lines)} 个三元组', 'success')
+        else:
+            flash('请输入要批量写入的三元组，每行一个。', 'warning')
         return redirect(url_for('index'))
 
     # 删除实体表单
