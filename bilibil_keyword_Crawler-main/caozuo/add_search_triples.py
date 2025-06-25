@@ -1,4 +1,5 @@
 from flask import (
+    Blueprint,
     Flask,
     render_template,
     request,
@@ -10,8 +11,9 @@ from flask import (
 import re
 from neo4j import GraphDatabase, basic_auth
 
-app = Flask(__name__)
-app.secret_key = 'test_secret_key'  # 防止跨站随便设置
+# Expose the Neo4j management routes via a blueprint so it can be combined with
+# other Flask apps.
+bp = Blueprint('triples', __name__, template_folder='templates')
 
 # 配置Neo4j连接信息
 NEO4J_URI = "bolt://localhost:7687"
@@ -101,7 +103,7 @@ def write_triple(start_entity, relation, end_entity):
 
 
 
-@app.route('/triples')
+@bp.route('/triples')
 def list_triples():
     page = int(request.args.get('page', 1))
     limit = 50
@@ -110,17 +112,17 @@ def list_triples():
     return render_template('triples.html', triples=triples, page=page)
 
 
-@app.route('/delete/<int:rid>', methods=['POST'])
+@bp.route('/delete/<int:rid>', methods=['POST'])
 def delete_triple(rid):
     page = int(request.args.get('page', 1))
     delete_triple_by_id(rid)
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify(status='ok')
     flash('已删除三元组', 'success')
-    return redirect(url_for('list_triples', page=page))
+    return redirect(url_for('triples.list_triples', page=page))
 
 
-@app.route('/edit/<int:rid>', methods=['GET', 'POST'])
+@bp.route('/edit/<int:rid>', methods=['GET', 'POST'])
 def edit_triple(rid):
     page = int(request.args.get('page', 1))
     if request.method == 'POST':
@@ -130,7 +132,7 @@ def edit_triple(rid):
         if s and r and e:
             update_triple(rid, s, r, e)
             flash('已更新三元组', 'success')
-            return redirect(url_for('list_triples', page=page))
+            return redirect(url_for('triples.list_triples', page=page))
         else:
             flash('请完整填写三元组', 'warning')
     with driver.session() as session:
@@ -142,7 +144,7 @@ def edit_triple(rid):
         triple = res.data() if res else None
     return render_template('edit_triple.html', triple=triple, page=page)
 
-@app.route('/', methods=['GET', 'POST'])
+@bp.route('/', methods=['GET', 'POST'])
 def index():
     search_results = None
     # 查询表单
@@ -163,7 +165,7 @@ def index():
             flash(f"已写入三元组: ({s})-[:{r}]->({e})", 'success')
         else:
             flash('请完整填写三元组的三个输入栏。', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('triples.index'))
 
     # 批量写入表单
     if request.method == 'POST' and 'bulk_insert_btn' in request.form:
@@ -177,7 +179,7 @@ def index():
             flash(f'已批量写入 {len(lines)} 个三元组', 'success')
         else:
             flash('请输入要批量写入的三元组，每行一个。', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('triples.index'))
 
     # 删除实体表单
     if request.method == 'POST' and 'del_btn' in request.form:
@@ -187,9 +189,17 @@ def index():
             flash(f"已删除实体“{del_entity}”及其所有出发关系和目标节点（如独立）。", 'success')
         else:
             flash("请填写要删除的实体名。", 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('triples.index'))
 
     return render_template('index.html', search_results=search_results)
 
+def create_app() -> Flask:
+    """Create a Flask app with the triples blueprint registered."""
+    app = Flask(__name__)
+    app.secret_key = 'test_secret_key'
+    app.register_blueprint(bp, url_prefix='/triples')
+    return app
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    create_app().run(debug=True)

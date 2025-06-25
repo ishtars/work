@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request
+from flask import Blueprint, Flask, render_template, request
 import pandas as pd
 import os
 
-app = Flask(__name__)
+# Define a blueprint so this module can be mounted on a larger Flask app.
+bp = Blueprint('comments', __name__, template_folder='templates')
 
 """Simple Flask app to browse comments by date and emotion.
 
@@ -76,7 +77,7 @@ def load_comments(start_date: str, end_date: str, emotion: str):
     return results
 
 
-@app.route('/', methods=['GET', 'POST'])
+@bp.route('/', methods=['GET', 'POST'])
 def filter_comments():
     selected_start = DATES[0]
     selected_end = DATES[-1]
@@ -108,5 +109,12 @@ def filter_comments():
     )
 
 
+def create_app() -> Flask:
+    """Create a Flask app with the comment blueprint registered."""
+    app = Flask(__name__)
+    app.register_blueprint(bp, url_prefix='/comments')
+    return app
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    create_app().run(debug=True)
