@@ -1,15 +1,14 @@
-from flask import Blueprint, Flask, render_template, request
+from flask import Flask, render_template, request
 import pandas as pd
 import os
 
-# Define a blueprint so this module can be mounted on a larger Flask app.
-bp = Blueprint('comments', __name__, template_folder='templates')
+app = Flask(__name__)
 
-"""Simple Flask app to browse comments by date and emotion.
+"""Simple Flask app to browse comments_maixiaowen by date and emotion.
 
 The comment CSV files are stored in a batch directory. By default the
 application will try to locate ``emotion_count_by_time_full.csv`` in one of
-``comments_batch2``, ``comments_batch1`` or ``comments`` under the project
+``comments_batch2``, ``comments_batch1`` or ``comments_maixiaowen`` under the project
 root.  You can override the directory by setting the ``BATCH_DIR`` environment
 variable.
 """
@@ -27,7 +26,7 @@ def detect_batch_dir() -> str:
         if os.path.isfile(csv_path):
             return path
 
-    for name in ("comments_batch2", "comments_batch1", "comments"):
+    for name in ("comments_batch2", "comments_batch1", "comments_maixiaowen"):
         path = os.path.join(BASE_DIR, name)
         csv_path = os.path.join(path, "emotion_count_by_time_full.csv")
         if os.path.isfile(csv_path):
@@ -48,7 +47,7 @@ DATES = sorted(count_df['time'].unique())
 
 
 def load_comments(start_date: str, end_date: str, emotion: str):
-    """Return comments within ``start_date`` and ``end_date`` for ``emotion``."""
+    """Return comments_maixiaowen within ``start_date`` and ``end_date`` for ``emotion``."""
 
     results = []
     mask = (
@@ -77,7 +76,7 @@ def load_comments(start_date: str, end_date: str, emotion: str):
     return results
 
 
-@bp.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET', 'POST'])
 def filter_comments():
     selected_start = DATES[0]
     selected_end = DATES[-1]
@@ -109,12 +108,5 @@ def filter_comments():
     )
 
 
-def create_app() -> Flask:
-    """Create a Flask app with the comment blueprint registered."""
-    app = Flask(__name__)
-    app.register_blueprint(bp, url_prefix='/comments')
-    return app
-
-
 if __name__ == '__main__':
-    create_app().run(debug=True)
+    app.run(debug=True)

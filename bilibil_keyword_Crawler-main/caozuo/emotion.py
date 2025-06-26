@@ -36,6 +36,7 @@ def find_comment_dirs() -> list:
         "comments_batch1",
         "comments_batch2",
         "comments_batch3",
+        "comments_maixiaowen",
         "comments",
     ]
     dirs = []
@@ -63,7 +64,7 @@ def select_directory() -> str:
 
     candidates = find_comment_dirs()
     if not candidates:
-        return os.path.join(BASE_DIR, "comments")
+        return os.path.join(BASE_DIR, "comments_maixiaowen")
     if len(candidates) == 1:
         return os.path.join(BASE_DIR, candidates[0])
 
@@ -237,7 +238,7 @@ def process_new_files(directory: str, force: bool = False) -> None:
     directory : str
         Directory containing ``*_comments.csv`` files.
     force : bool
-        If ``True``, classify comments even if the file already contains an
+        If ``True``, classify comments_maixiaowen even if the file already contains an
         ``emotion`` column. Otherwise only files without this column are
         processed (the previous behaviour).
     """

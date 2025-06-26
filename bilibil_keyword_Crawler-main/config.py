@@ -1,9 +1,9 @@
 config = {
     # 基础搜索配置
-    "keywords": ["麦晓雯红皮"],  # 搜索关键词列表，支持多关键词
+    "keywords": ["黑夜模式","三角洲"],  # 搜索关键词列表，支持多关键词
     "keywords_blacklist": [],  # 视频标题黑名单，含有这些词的视频将被过滤
     "tids": "",               # 分区ID，空字符串表示全部分区
-    "is_union": True,         # True表示OR逻辑(并集)，False表示AND逻辑(交集)
+    "is_union": False,         # True表示OR逻辑(并集)，False表示AND逻辑(交集)
     "file_path": "./bilibili_search.csv",  # 搜索结果保存路径
     "page": 30,               # 每关键词搜索页数
     

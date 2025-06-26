@@ -50,7 +50,7 @@ def find_all_csv_files(folder):
     return csv_files
 
 def main():
-    input_folder = '../comments'
+    input_folder = '../comments_maixiaowen'
     comment_col_name = '评论内容'
     output_file = 'output_entities.csv'
 

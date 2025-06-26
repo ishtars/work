@@ -84,7 +84,7 @@ config = {
     "db_tables": {
         "videos": "bili_videos",      # 视频信息表名
         "owners": "bili_owners",      # UP主信息表名
-        "comments": "bili_comments"   # 评论信息表名
+        "comments_maixiaowen": "bili_comments"   # 评论信息表名
     }
 }
 ```
@@ -94,7 +94,7 @@ config = {
 可以通过命令行参数覆盖配置文件中的设置:
 
 ```bash
-python main.py --keyword "搜索关键词" --max-page 3 --format xlsx --output-mode full --comments --use-db --recent-days 7
+python main.py --keyword "搜索关键词" --max-page 3 --format xlsx --output-mode full --comments_maixiaowen --use-db --recent-days 7
 ```
 
 主要参数:
@@ -191,7 +191,7 @@ LIMIT 10;
 在命令行中使用 `--recent-days` 参数指定要获取的最近天数：
 
 ```bash
-python main.py --keyword "崩铁" --recent-days 7 --max-page 3 --comments
+python main.py --keyword "崩铁" --recent-days 7 --max-page 3 --comments_maixiaowen
 ```
 
 这将分别获取最近7天内每天发布的视频，每天最多搜索3页结果。此功能适合获取时间跨度较大的数据，或按日期观察视频发布趋势。
