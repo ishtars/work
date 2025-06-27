@@ -6,13 +6,13 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 LIST_URL = "https://shouyou.3dmgame.com/zt/192161_gl/"
+PAGE_URL_TEMPLATE = "https://shouyou.3dmgame.com/zt/192161_gl_all_{}/"
 OUTPUT_DIR = "guides"
-
+TOTAL_PAGES = 32  # 总页数
 
 def slugify(text):
     text = re.sub(r"[\\\\/:*?\"<>|]", "_", text)
     return text.strip()
-
 
 def fetch_article(url):
     r = requests.get(url, timeout=10)
@@ -23,7 +23,6 @@ def fetch_article(url):
         body = soup.body
     return body.get_text("\n", strip=True)
 
-
 def fetch_list(url):
     r = requests.get(url, timeout=10)
     r.encoding = "utf-8"
@@ -32,29 +31,39 @@ def fetch_list(url):
         (a.get_text(strip=True), urljoin(url, a["href"]))
         for a in soup.select("li.selectpost span.text_h a")
     ]
-    next_tag = soup.select_one("li.next a")
-    next_url = urljoin(url, next_tag["href"]) if next_tag else None
-    return articles, next_url
-
+    return articles
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    page_url = LIST_URL
     seen_titles = set()
-    while page_url:
-        articles, next_url = fetch_list(page_url)
+    for page in range(1, TOTAL_PAGES + 1):
+        if page == 1:
+            page_url = LIST_URL
+        else:
+            page_url = PAGE_URL_TEMPLATE.format(page)
+        print(f"正在爬取第{page}页: {page_url}")
+        try:
+            articles = fetch_list(page_url)
+        except Exception as e:
+            print(f"第{page}页获取失败：{e}")
+            continue
         for title, url in articles:
             if title in seen_titles:
                 continue
             seen_titles.add(title)
-            text = fetch_article(url)
+            try:
+                text = fetch_article(url)
+            except Exception as e:
+                print(f"抓取文章失败: {url} -> {e}")
+                continue
             filename = os.path.join(OUTPUT_DIR, f"{slugify(title)}.txt")
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(title + "\n" + url + "\n\n" + text)
-            print(f"Saved: {filename}")
+            try:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(title + "\n" + url + "\n\n" + text)
+                print(f"Saved: {filename}")
+            except Exception as e:
+                print(f"保存失败: {filename} -> {e}")
             time.sleep(0.5)
-        page_url = next_url
-
 
 if __name__ == "__main__":
     main()
