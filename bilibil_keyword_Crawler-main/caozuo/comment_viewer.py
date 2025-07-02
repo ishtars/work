@@ -26,7 +26,7 @@ def detect_batch_dir() -> str:
         if os.path.isfile(csv_path):
             return path
 
-    for name in ("comments_batch2", "comments_batch1", "comments_maixiaowen"):
+    for name in ("comments",):
         path = os.path.join(BASE_DIR, name)
         csv_path = os.path.join(path, "emotion_count_by_time_full.csv")
         if os.path.isfile(csv_path):
