@@ -41,31 +41,39 @@ class KnowledgeGraphExtractor:
         self.driver.close()
     def extract_triples(self):
         with self.driver.session() as session:
-            result = session.run("""
-                MATCH (a)-[r]->(b)
-                RETURN a.name AS source, type(r) AS relation, b.name AS target
-            """)
-            triples = [(record["source"], record["relation"], record["target"])
-                       for record in result]
+            result = session.run(
+                "MATCH (a)-[r]->(b) RETURN a.name AS source, r.rel AS relation, b.name AS target"
+            )
+            triples = [
+                (record["source"], record["relation"], record["target"])
+                for record in result
+            ]
             return triples
     def extract_entities_and_relations(self):
         with self.driver.session() as session:
-            entities_result = session.run("MATCH (n) RETURN DISTINCT n.name AS entity")
+            entities_result = session.run(
+                "MATCH (n) RETURN DISTINCT n.name AS entity"
+            )
             entities = [record["entity"] for record in entities_result]
-            relations_result = session.run("MATCH ()-[r]->() RETURN DISTINCT type(r) AS relation")
+            relations_result = session.run(
+                "MATCH ()-[r]->() RETURN DISTINCT r.rel AS relation"
+            )
             relations = [record["relation"] for record in relations_result]
             return entities, relations
     def find_3_hop_paths(self, start_entity):
         with self.driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH path = (start {name: $start_entity})-[*1..3]->(end)
                 RETURN path LIMIT 100
-            """, start_entity=start_entity)
+                """,
+                start_entity=start_entity,
+            )
             paths = []
             for record in result:
                 path = record["path"]
                 nodes = [node["name"] for node in path.nodes]
-                relationships = [rel.type for rel in path.relationships]
+                relationships = [rel["rel"] for rel in path.relationships]
                 paths.append((nodes, relationships))
             return paths
     def extract_entities_from_comment(self, comment, entities):
@@ -262,7 +270,7 @@ def main():
     data = Data(x=x, edge_index=edge_index, edge_type=edge_type)
     text_processor = TextProcessor(model_name="moka-ai/m3e-base")
     model = EmotionAwareGNNModel(768, len(entities), len(relations), text_processor)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # ★ Step 1: 预先取得所有关系的语义embedding，用于semantic alignment loss
     # 放在GNN训练外面即可（关系类型通常很少）
@@ -276,7 +284,7 @@ def main():
     else:
         device = torch.device('cpu')
 
-    alpha = 5.0  # ★ 语义loss权重，可调
+    alpha = 1.0  # ★ 语义loss权重，可调
 
     print("GNN模型训练中...")
     model.train()
@@ -304,6 +312,7 @@ def main():
         loss = loss_link + alpha * loss_sem
 
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
         if (epoch+1) % 10 == 0:
@@ -372,7 +381,7 @@ def process_comments_from_csv(csv_path, emotion="Disgust", output_path=None):
     text_processor = TextProcessor()
     model = EmotionAwareGNNModel(
         64, len(entities), len(relations), text_processor)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     print("训练情感感知的GNN模型...")
     model.train()
     for epoch in range(30):

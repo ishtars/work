@@ -28,7 +28,7 @@ def search_relations(start_entity):
         query = (
             "MATCH (n)-[r]->(m) "
             "WHERE n.name = $start_entity "
-            "RETURN n.name AS start, type(r) AS relation, m.name AS end"
+            "RETURN n.name AS start, r.rel AS relation, m.name AS end"
         )
         result = session.run(query, start_entity=start_entity)
         return list(result)
@@ -38,7 +38,7 @@ def list_all_triples(offset: int = 0, limit: int = 50):
     with driver.session() as session:
         query = (
             "MATCH (s)-[r]->(e) "
-            "RETURN id(r) AS rid, s.name AS start, type(r) AS relation, e.name AS end "
+            "RETURN id(r) AS rid, s.name AS start, r.rel AS relation, e.name AS end "
             "ORDER BY rid SKIP $offset LIMIT $limit"
         )
         result = session.run(query, offset=offset, limit=limit)
@@ -56,9 +56,9 @@ def update_triple(rid: int, start: str, relation: str, end: str):
         query = (
             "MERGE (n {name: $start}) "
             "MERGE (m {name: $end}) "
-            f"MERGE (n)-[r:{relation.upper()}]->(m)"
+            "MERGE (n)-[r:TRIPLE {rel: $relation}]->(m)"
         )
-        session.run(query, start=start, end=end)
+        session.run(query, start=start, end=end, relation=relation)
 
 # 删除实体和相关目标与出边
 def delete_entity_and_targets(start_entity):
@@ -94,10 +94,15 @@ def write_triple(start_entity, relation, end_entity):
         query = (
             "MERGE (n {name: $start_entity}) "
             "MERGE (m {name: $end_entity}) "
-            f"MERGE (n)-[r:{relation.upper()}]->(m) "
-            "RETURN n, type(r), m"
+            "MERGE (n)-[r:TRIPLE {rel: $relation}]->(m) "
+            "RETURN n, r, m"
         )
-        session.run(query, start_entity=start_entity, end_entity=end_entity)
+        session.run(
+            query,
+            start_entity=start_entity,
+            end_entity=end_entity,
+            relation=relation,
+        )
 
 
 
@@ -136,7 +141,7 @@ def edit_triple(rid):
     with driver.session() as session:
         q = (
             "MATCH (s)-[r]->(e) WHERE id(r)=$rid "
-            "RETURN s.name AS start, type(r) AS relation, e.name AS end"
+            "RETURN s.name AS start, r.rel AS relation, e.name AS end"
         )
         res = session.run(q, rid=rid).single()
         triple = res.data() if res else None
