@@ -129,35 +129,27 @@ def match_emotion_for_relation(rel_name, text_processor):
     # 2. 否则返回Neutral或标记为未命中
     return ("Neutral", 0.0)
 
+def get_gnn_path_score(nodes, rels, node_emb, entity_to_idx, relation_to_idx, model):
+    """
+    用训练好的 GNN 嵌入给一条多跳路径打分。
+    """
+    device = node_emb.device
+    hop_scores = []
+    for i, rel in enumerate(rels):
+        src_idx = entity_to_idx[nodes[i]]
+        tgt_idx = entity_to_idx[nodes[i+1]]
+        rel_idx = torch.tensor([relation_to_idx[rel]], dtype=torch.long, device=device)
 
-def get_gnn_path_relation_sem_score(comment, relationships, text_processor, model, relation_to_idx, method='max'):
-    comment_keywords = get_comment_keywords(comment)
-    if not comment_keywords:
-        return 0, None, None
-    kw_embs = text_processor.encode_text(comment_keywords)
-    if kw_embs.ndim == 1:
-        kw_embs = kw_embs[np.newaxis, :]
-    kw_embs_norm = kw_embs / np.linalg.norm(kw_embs, axis=1, keepdims=True)
-    max_score = -1
-    max_rel, max_kw = None, None
-    hop_detail = []
-    for rel in relationships:
-        rel_idx = relation_to_idx[rel]
-        rel_emb = model.relation_embedding.weight[rel_idx].detach().cpu().numpy()
-        rel_emb = rel_emb / np.linalg.norm(rel_emb)
-        sim_scores = np.dot(kw_embs_norm, rel_emb)
-        max_idx = np.argmax(sim_scores)
-        this_max = sim_scores[max_idx]
-        hop_detail.append((rel, comment_keywords[max_idx], this_max))
-        if this_max > max_score:
-            max_score = this_max
-            max_rel = rel
-            max_kw = comment_keywords[max_idx]
-    if method == 'max':
-        return max_score, max_rel, max_kw
-    else:
-        mean_score = np.mean([item[2] for item in hop_detail])
-        return mean_score, max_rel, max_kw
+        src_emb = node_emb[src_idx].unsqueeze(0)  # [1, hidden]
+        tgt_emb = node_emb[tgt_idx].unsqueeze(0)  # [1, hidden]
+
+        score = model.get_relation_score(src_emb, rel_idx, tgt_emb)  # [1]
+        hop_scores.append(score.item())
+        hops = len(hop_scores)
+        weights = torch.arange(1, hops + 1, dtype=torch.float, device=device)
+        weighted = [hop_scores[i] * weights[i].item() for i in range(hops)]
+        return sum(weighted) / weights.sum().item()
+
 
 class EmotionAwareGNNModel(torch.nn.Module):
     def __init__(self, hidden_channels, num_entities, num_relations, text_processor):
@@ -170,6 +162,12 @@ class EmotionAwareGNNModel(torch.nn.Module):
         self.conv1 = GATConv(hidden_channels, hidden_channels, heads=4, dropout=0.2)
         self.conv2 = GATConv(hidden_channels * 4, hidden_channels, heads=1, dropout=0.2)
         self.conv3 = GATConv(hidden_channels, hidden_channels, heads=1, dropout=0.2)
+        self.sem_scale = torch.nn.Parameter(torch.tensor(1.0))
+        self.score_mlp = torch.nn.Sequential(
+                       torch.nn.Linear(hidden_channels * 3, hidden_channels),
+                       torch.nn.ReLU(),
+                       torch.nn.Linear(hidden_channels, 1)
+            )
     def forward(self, x, edge_index, edge_type, emotion_idx=None):
         x = self.entity_embedding(x)
         if emotion_idx is not None:
@@ -186,8 +184,9 @@ class EmotionAwareGNNModel(torch.nn.Module):
         x = self.conv3(x, edge_index)
         return x
     def get_relation_score(self, source_emb, relation_type, target_emb, emotion_idx=None):
-        relation_emb = self.relation_embedding(relation_type)
-        score = torch.sum(source_emb * relation_emb * target_emb, dim=1)
+        rel_emb = self.relation_embedding(relation_type)
+        concat = torch.cat([source_emb, rel_emb, target_emb], dim=1) # [batch, 3D]
+        score = self.score_mlp(concat).squeeze(1)  # [batch]
         return score
 
 def emotion_driven_reasoning(comment, emotion, model, data, extractor, entities, relations, entity_to_idx,
@@ -230,9 +229,11 @@ def emotion_driven_reasoning(comment, emotion, model, data, extractor, entities,
             emotion_score = emotion_score / len(rels)
             emotion_w_score = np.mean(hop_scores)
             # 使用GNN空间的语义分
-            sem_score, sem_rel, sem_kw = get_gnn_path_relation_sem_score(
-                comment, rels, text_processor, model, relation_to_idx, method='max')
-            final_score = fusion_weights['emotion'] * emotion_w_score + fusion_weights['sem'] * sem_score * 10
+            # 使用 GNN 嵌入⽽非文本相似度来计算语义分
+            sem_score = get_gnn_path_score(
+                nodes, rels, node_emb, entity_to_idx, relation_to_idx, model)
+            final_score = (fusion_weights['emotion'] * emotion_w_score
+                         + fusion_weights['sem'] * (sem_score * model.sem_scale))
             path_text = text_processor.path_to_text(nodes, rels)
             all_paths_with_scores.append({
                 'start_entity': start_entity,
@@ -243,8 +244,6 @@ def emotion_driven_reasoning(comment, emotion, model, data, extractor, entities,
                 'emotion_w_score': emotion_w_score,
                 'emotion_score': emotion_score,
                 'sem_score': sem_score,
-                'sem_score_rel': sem_rel,
-                'sem_score_kw': sem_kw,
                 'final_score': final_score,
                 'emotion_match_detail': emotion_match_detail,
                 'rel_emotions': rel_emotions
@@ -288,7 +287,7 @@ def main():
 
     print("GNN模型训练中...")
     model.train()
-    for epoch in range(50):
+    for epoch in range(400):
         optimizer.zero_grad()
         node_emb = model(data.x, data.edge_index, data.edge_type)
         source_emb = node_emb[data.edge_index[0]]
@@ -312,7 +311,6 @@ def main():
         loss = loss_link + alpha * loss_sem
 
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
         if (epoch+1) % 10 == 0:
@@ -347,7 +345,7 @@ def main():
             print(f"\n路径 {i+1}, 综合得分: {result['final_score']:.4f}")
             print(f"链路: {result['path_text']}")
             print(f"细节: 情感{result['emotion_w_score']:.2f} 语义{result['sem_score']:.2f}")
-            print(f"语义最高匹配: \"{result['sem_score_kw']}\" <--> \"{result['sem_score_rel']}\" ，分数: {result['sem_score']:.4f}")
+            print(f"句级语义相似度: {result['sem_score']:.4f}")
             print(f"情感贴合链: {emo_detail}")
     extractor.close()
 

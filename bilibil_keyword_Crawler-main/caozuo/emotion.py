@@ -64,7 +64,7 @@ def select_directory() -> str:
 
     candidates = find_comment_dirs()
     if not candidates:
-        return os.path.join(BASE_DIR, "comments_maixiaowen")
+        return os.path.join(BASE_DIR, "comments_maixiaowen") #没有的情况下用默认目录
     if len(candidates) == 1:
         return os.path.join(BASE_DIR, candidates[0])
 

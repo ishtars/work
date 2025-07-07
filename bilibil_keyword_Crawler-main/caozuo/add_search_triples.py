@@ -23,14 +23,15 @@ driver = GraphDatabase.driver(
 )
 
 # 查找关系
-def search_relations(start_entity):
+def search_relations(entity):
+    """Find triples where the given entity is either the source or the target."""
     with driver.session() as session:
         query = (
             "MATCH (n)-[r]->(m) "
-            "WHERE n.name = $start_entity "
+            "WHERE n.name = $entity OR m.name = $entity "
             "RETURN n.name AS start, r.rel AS relation, m.name AS end"
         )
-        result = session.run(query, start_entity=start_entity)
+        result = session.run(query, entity=entity)
         return list(result)
 
 # 列出三元组，支持分页
