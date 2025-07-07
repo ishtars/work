@@ -76,13 +76,36 @@ class KnowledgeGraphExtractor:
                 relationships = [rel["rel"] for rel in path.relationships]
                 paths.append((nodes, relationships))
             return paths
+
+    def find_reverse_3_hop_paths(self, start_entity):
+        paths = []
+        with self.driver.session() as session:
+            result = session.run(
+                                """
+                    MATCH path = (end)-[*1..3]->(start {name: $start_entity})
+                    RETURN path LIMIT 100
+                    """,
+                    start_entity = start_entity,
+            )
+            for record in result:
+                    path = record["path"]
+                    nodes = [node["name"] for node in path.nodes]
+                    rels = [rel["rel"] for rel in path.relationships]
+                    paths.append((nodes, rels))
+        return paths
     def extract_entities_from_comment(self, comment, entities):
+        # 1) 分词，并去掉非中英文数字的符号
+        tokens = set(get_comment_keywords(comment))
+
+        # 3) 倒序匹配：只保留长度 ≥ 2、非停用词，且出现在 tokens 里的实体
         found_entities = []
-        sorted_entities = sorted(entities, key=len, reverse=True)
-        for entity in sorted_entities:
-            if entity in comment:
+        for entity in sorted(entities, key=len, reverse=True):
+            if len(entity) < 2:
+                continue
+            if entity in tokens:
                 found_entities.append(entity)
         return found_entities
+
 
 class TextProcessor:
     def __init__(self, model_name="moka-ai/m3e-base"):
@@ -206,7 +229,10 @@ def emotion_driven_reasoning(comment, emotion, model, data, extractor, entities,
         node_emb = model(data.x, data.edge_index, data.edge_type, emotion_idx)
     all_paths_with_scores = []
     for start_entity in found_entities:
-        paths = extractor.find_3_hop_paths(start_entity)
+        forward_paths = extractor.find_3_hop_paths(start_entity)
+        backward_paths = extractor.find_reverse_3_hop_paths(start_entity)
+        paths = forward_paths + backward_paths
+        print(paths)
         if not paths:
             print(f"没有找到从 '{start_entity}' 出发的3跳路径")
             continue
@@ -287,7 +313,7 @@ def main():
 
     print("GNN模型训练中...")
     model.train()
-    for epoch in range(400):
+    for epoch in range(200):
         optimizer.zero_grad()
         node_emb = model(data.x, data.edge_index, data.edge_type)
         source_emb = node_emb[data.edge_index[0]]
@@ -321,6 +347,10 @@ def main():
         comment = input("\n请输入评论内容 (输入'q'退出): ")
         if comment.lower() == 'q':
             break
+        found_entities = extractor.extract_entities_from_comment(comment, entities)
+        if not found_entities:
+            print("评论中未匹配到任何知识图谱实体，无法进行推理。")
+            continue
         print("\n请选择评论的情感类型:")
         for i, emotion in enumerate(EMOTIONS):
             print(f"{i + 1}. {emotion}")
@@ -333,6 +363,7 @@ def main():
         reasoning_results = emotion_driven_reasoning(
             comment, emotion, model, data, extractor, entities, relations,
             entity_to_idx, relation_to_idx, text_processor)
+
         if not reasoning_results:
             print("未找到相关推理路径")
             continue
