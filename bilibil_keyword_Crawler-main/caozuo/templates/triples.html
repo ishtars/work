@@ -13,6 +13,10 @@
 <body>
     <h2>全部三元组 (每页50条)</h2>
     <a href="{{ url_for('index') }}">返回首页</a>
+    <form method="get" style="margin-bottom:10px;">
+        <input name="q" placeholder="搜索三元组" value="{{ query }}" />
+        <button type="submit">搜索</button>
+    </form>
     <table>
         <tr><th>起始</th><th>关系</th><th>目标</th><th>操作</th></tr>
         {% for t in triples %}
@@ -21,9 +25,9 @@
             <td>{{ t['relation'] }}</td>
             <td>{{ t['end'] }}</td>
             <td>
-                <a href="{{ url_for('edit_triple', rid=t['rid'], page=page) }}">修改</a>
+                <a href="{{ url_for('edit_triple', rid=t['rid'], page=page, q=query) }}">修改</a>
                 |
-                <form method="post" action="{{ url_for('delete_triple', rid=t['rid'], page=page) }}" style="display:inline">
+                <form method="post" action="{{ url_for('delete_triple', rid=t['rid'], page=page, q=query) }}" style="display:inline">
                     <button type="submit">删除</button>
                 </form>
             </td>
@@ -32,10 +36,10 @@
     </table>
     <div class="pager">
         {% if page > 1 %}
-        <a href="{{ url_for('list_triples', page=page-1) }}">上一页</a>
+        <a href="{{ url_for('list_triples', page=page-1, q=query) }}">上一页</a>
         {% endif %}
         <span>第 {{ page }} 页</span>
-        <a href="{{ url_for('list_triples', page=page+1) }}">下一页</a>
+        <a href="{{ url_for('list_triples', page=page+1, q=query) }}">下一页</a>
     </div>
 </body>
 </html>
