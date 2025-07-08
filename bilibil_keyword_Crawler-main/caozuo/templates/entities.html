@@ -2,35 +2,22 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>全部实体</title>
+    <title>实体列表</title>
     <style>
     body {font-family: "\u5FAE\u8F6F\u96C5\u9ED1", Arial, sans-serif; margin:40px;}
-    table {border-collapse: collapse; width: 100%;}
-    th, td {border: 1px solid #ccc; padding: 6px 10px; text-align: left;}
+    ul {list-style-type: none; padding: 0;}
+    li {padding: 4px 0;}
     .pager {margin-top: 20px;}
     </style>
 </head>
 <body>
-    <h2>全部实体 (每页50个)</h2>
+    <h2>实体列表 (每页50个)</h2>
     <a href="{{ url_for('index') }}">返回首页</a>
-    <form method="post">
-        <input name="entity_name" placeholder="新增实体名" />
-        <button type="submit" name="add_entity_btn">新增</button>
-    </form>
-    <table>
-        <tr><th>名称</th><th>操作</th></tr>
+    <ul>
         {% for e in entities %}
-        <tr>
-            <td>{{ e['name'] }}</td>
-            <td>
-                <a href="{{ url_for('edit_entity', nid=e['nid'], page=page) }}">修改</a> |
-                <form method="post" action="{{ url_for('delete_entity_route', nid=e['nid'], page=page) }}" style="display:inline">
-                    <button type="submit">删除</button>
-                </form>
-            </td>
-        </tr>
+        <li>{{ e }}</li>
         {% endfor %}
-    </table>
+    </ul>
     <div class="pager">
         {% if page > 1 %}
         <a href="{{ url_for('list_entities_route', page=page-1) }}">上一页</a>
@@ -38,14 +25,5 @@
         <span>第 {{ page }} 页</span>
         <a href="{{ url_for('list_entities_route', page=page+1) }}">下一页</a>
     </div>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div>
-        {% for category, message in messages %}
-          <div class="{{ category }}">{{ message }}</div>
-        {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
 </body>
 </html>

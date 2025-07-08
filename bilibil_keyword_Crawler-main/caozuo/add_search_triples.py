@@ -34,6 +34,18 @@ def search_relations(entity):
         result = session.run(query, entity=entity)
         return list(result)
 
+# 获取所有唯一实体，支持分页
+def list_entities(offset: int = 0, limit: int = 50):
+    """Return a page of distinct entity names."""
+    with driver.session() as session:
+        query = (
+            "MATCH (n) "
+            "RETURN DISTINCT n.name AS name "
+            "ORDER BY name SKIP $offset LIMIT $limit"
+        )
+        result = session.run(query, offset=offset, limit=limit)
+        return [record["name"] for record in result]
+
 # 列出三元组，支持分页
 def list_all_triples(offset: int = 0, limit: int = 50):
     with driver.session() as session:
@@ -57,6 +69,10 @@ def search_triples(keyword: str, offset: int = 0, limit: int = 50):
         )
         res = session.run(q, kw=keyword, offset=offset, limit=limit)
         return list(res)
+
+# 路由：查看所有实体
+
+# 路由：查看所有实体
 
 # 根据关系ID删除三元组
 def delete_triple_by_id(rid: int):
@@ -499,35 +515,9 @@ def list_entities_route():
     return render_template('entities.html', entities=entities, page=page, query=query)
 
 
-@app.route('/entities/edit/<int:nid>', methods=['GET', 'POST'])
-def edit_entity(nid):
-    page = int(request.args.get('page', 1))
-    query = request.args.get('q', '').strip()
-    if request.method == 'POST':
-        new_name = request.form.get('name', '').strip()
-        if new_name:
-            update_entity(nid, new_name)
-            flash('已更新实体', 'success')
-            return redirect(url_for('list_entities_route', page=page, q=query))
-        else:
-            flash('请填写实体名', 'warning')
-    with driver.session() as session:
-        res = session.run(
-            "MATCH (n) WHERE id(n)=$nid RETURN n.name AS name", nid=nid
-        ).single()
-        entity = {'name': res['name']} if res else None
-    return render_template('edit_entity.html', entity=entity, page=page, query=query)
 
 
-@app.route('/entities/delete/<int:nid>', methods=['POST'])
-def delete_entity_route(nid):
-    page = int(request.args.get('page', 1))
-    query = request.args.get('q', '').strip()
-    delete_entity_by_id(nid)
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify(status='ok')
-    flash('已删除实体', 'success')
-    return redirect(url_for('list_entities_route', page=page, q=query))
+
 
 
 # ---------- 关系相关路由 ----------
@@ -583,21 +573,6 @@ def delete_relation_route(rel):
 
 # ---------- 实体相关路由 ----------
 
-@app.route('/entities', methods=['GET', 'POST'])
-def list_entities_route():
-    page = int(request.args.get('page', 1))
-    limit = 50
-    offset = (page - 1) * limit
-    if request.method == 'POST' and 'add_entity_btn' in request.form:
-        name = request.form.get('entity_name', '').strip()
-        if name:
-            add_entity(name)
-            flash('已新增实体', 'success')
-        else:
-            flash('请输入实体名称', 'warning')
-        return redirect(url_for('list_entities_route', page=page))
-    entities = list_entities(offset, limit)
-    return render_template('entities.html', entities=entities, page=page)
 
 
 @app.route('/entities/edit/<int:nid>', methods=['GET', 'POST'])
@@ -631,47 +606,11 @@ def delete_entity_route(nid):
 
 # ---------- 关系相关路由 ----------
 
-@app.route('/relations', methods=['GET', 'POST'])
-def list_relations_route():
-    page = int(request.args.get('page', 1))
-    limit = 50
-    offset = (page - 1) * limit
-    if request.method == 'POST' and 'add_relation_btn' in request.form:
-        s = request.form.get('rel_start', '').strip()
-        r = request.form.get('rel_name', '').strip()
-        e = request.form.get('rel_end', '').strip()
-        if s and r and e:
-            write_triple(s, r, e)
-            flash('已添加关系', 'success')
-        else:
-            flash('请完整填写起始实体、关系和目标实体。', 'warning')
-        return redirect(url_for('list_relations_route', page=page))
-    relations = list_relation_types(offset, limit)
-    return render_template('relations.html', relations=relations, page=page)
 
 
-@app.route('/relations/edit/<rel>', methods=['GET', 'POST'])
-def edit_relation(rel):
-    page = int(request.args.get('page', 1))
-    if request.method == 'POST':
-        new_name = request.form.get('new_name', '').strip()
-        if new_name:
-            rename_relation(rel, new_name)
-            flash('已更新关系', 'success')
-            return redirect(url_for('list_relations_route', page=page))
-        else:
-            flash('请输入关系名称', 'warning')
-    return render_template('edit_relation.html', rel=rel, page=page)
 
 
-@app.route('/relations/delete/<rel>', methods=['POST'])
-def delete_relation_route(rel):
-    page = int(request.args.get('page', 1))
-    delete_relation(rel)
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify(status='ok')
-    flash('已删除关系', 'success')
-    return redirect(url_for('list_relations_route', page=page))
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():

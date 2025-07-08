@@ -17,7 +17,10 @@
 </head>
 <body>
     <h2>Neo4j 图关系操作界面</h2>
-    <p><a href="{{ url_for('list_triples') }}">查看所有三元组</a></p>
+    <p>
+        <a href="{{ url_for('list_triples') }}">查看所有三元组</a> |
+        <a href="{{ url_for('list_entities_route') }}">查看实体列表</a>
+    </p>
     <p><a href="{{ url_for('list_relations_route') }}">查看所有关系</a></p>
     <p><a href="{{ url_for('list_entities_route') }}">查看所有实体</a></p>
 
