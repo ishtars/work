@@ -16,6 +16,10 @@
         <input name="end" value="{{ triple['end'] }}" placeholder="目标实体" />
         <button type="submit">保存</button>
     </form>
-    <a href="{{ url_for('list_triples', page=page) }}">返回列表</a>
+    <p>
+        <a href="{{ url_for('list_triples', page=page, q=query) }}">返回三元组列表</a> |
+        <a href="{{ url_for('relations_page') }}">管理所有关系</a> |
+        <a href="{{ url_for('entities_page') }}">管理所有实体</a>
+    </p>
 </body>
 </html>

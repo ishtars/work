@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>编辑关系</title>
+    <style>
+    body {font-family: "\u5FAE\u8F6F\u96C5\u9ED1", Arial, sans-serif; margin:40px;}
+    input {font-size:1em;}
+    </style>
+</head>
+<body>
+    <h2>编辑关系</h2>
+    <form method="post">
+        <input name="new_name" value="{{ rel }}" placeholder="关系名称" />
+        <button type="submit">保存</button>
+    </form>
+    <a href="{{ url_for('relations_page', page=page, q=query) }}">返回列表</a>
+</body>
+</html>
