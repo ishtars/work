@@ -11,6 +11,8 @@ import jieba
 from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
+import openai
+import httpx
 
 # Neo4j连接配置
 NEO4J_CONFIG = {
@@ -18,6 +20,19 @@ NEO4J_CONFIG = {
     "user": "neo4j",
     "password": "8168377qwe"
 }
+
+# OpenAI API configuration (uses proxy via OPENAI_BASE_URL)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.kksj.org/v1")
+_proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+_http_client = None
+if _proxy:
+    _http_client = httpx.Client(proxies=_proxy)
+openai_client = openai.OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url=OPENAI_BASE_URL,
+    http_client=_http_client,
+)
 
 # 9种情感
 EMOTIONS = ["Sadness", "Anger", "Regret", "Disgust", "Joy", "Expectation", "Surprise", "Love", "Neutral"]
@@ -94,15 +109,36 @@ class KnowledgeGraphExtractor:
                     paths.append((nodes, rels))
         return paths
     def extract_entities_from_comment(self, comment, entities):
-        # 1) 分词，并去掉非中英文数字的符号
-        tokens = set(get_comment_keywords(comment))
+        """Extract entities from ``comment`` using the model API.
 
-        # 3) 倒序匹配：只保留长度 ≥ 2、非停用词，且出现在 tokens 里的实体
+        Falls back to simple keyword matching if the API fails."""
+
+        tokens = []
+        if openai_client.api_key:
+            prompt = (
+                "请从下面的评论文本中识别所有实体名称，"
+                "只返回实体列表，用逗号分隔。\n评论:" + comment
+            )
+            try:
+                resp = openai_client.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                )
+                text = resp.choices[0].message.content.strip()
+                tokens = [t.strip() for t in re.split(r"[,\s，]+", text) if t.strip()]
+            except Exception as e:
+                print(f"实体识别API失败，使用本地分词: {e}")
+                tokens = get_comment_keywords(comment)
+        else:
+            tokens = get_comment_keywords(comment)
+
+        token_set = set(tokens)
         found_entities = []
         for entity in sorted(entities, key=len, reverse=True):
             if len(entity) < 2:
                 continue
-            if entity in tokens:
+            if entity in token_set:
                 found_entities.append(entity)
         return found_entities
 
@@ -171,7 +207,8 @@ def get_gnn_path_score(nodes, rels, node_emb, entity_to_idx, relation_to_idx, mo
         hops = len(hop_scores)
         weights = torch.arange(1, hops + 1, dtype=torch.float, device=device)
         weighted = [hop_scores[i] * weights[i].item() for i in range(hops)]
-        return sum(weighted) / weights.sum().item()
+        return (sum(weighted) /
+                weights.sum().item())
 
 
 class EmotionAwareGNNModel(torch.nn.Module):
